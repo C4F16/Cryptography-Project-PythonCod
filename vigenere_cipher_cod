@@ -3,7 +3,6 @@ Vigenere Cipher Cryptanalysis
 CY 261 - Cryptography Term Project 10
 Phase 1 - Task 1
 
-Pure Python - NO external libraries at all.
 """
 
 ENGLISH_FREQ = {
