@@ -1,0 +1,168 @@
+"""
+Vigenere Cipher Cryptanalysis
+CY 261 - Cryptography Term Project 10
+Phase 1 - Task 1
+
+Pure Python - NO external libraries at all.
+"""
+
+ENGLISH_FREQ = {
+    'A': 8.2,  'B': 1.5,  'C': 2.8,  'D': 4.3,  'E': 12.7,
+    'F': 2.2,  'G': 2.0,  'H': 6.1,  'I': 7.0,  'J': 0.15,
+    'K': 0.77, 'L': 4.0,  'M': 2.4,  'N': 6.7,  'O': 7.5,
+    'P': 1.9,  'Q': 0.1,  'R': 6.0,  'S': 6.3,  'T': 9.1,
+    'U': 2.8,  'V': 1.0,  'W': 2.4,  'X': 0.15, 'Y': 2.0,
+    'Z': 0.07
+}
+
+LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+def calc_ic(text):
+    freq = {}
+    for c in text:
+        freq[c] = freq.get(c, 0) + 1
+    n = len(text)
+    if n <= 1:
+        return 0
+    return sum(f * (f - 1) for f in freq.values()) / (n * (n - 1))
+
+def find_key_length(text, max_len=20):
+    ic_values = []
+    for kl in range(1, max_len + 1):
+        cols = [text[c::kl] for c in range(kl)]
+        avg_ic = sum(calc_ic(col) for col in cols) / kl
+        ic_values.append(avg_ic)
+    best_kl = None
+    for i, ic in enumerate(ic_values):
+        if ic >= 0.060:
+            best_kl = i + 1
+            break
+    if best_kl is None:
+        best_kl = ic_values.index(max(ic_values)) + 1
+    return best_kl, ic_values
+
+def find_key_char(column):
+    freq = {}
+    for c in column:
+        freq[c] = freq.get(c, 0) + 1
+    n = len(column)
+    best_shift, best_score = 0, -1
+    for shift in range(26):
+        score = 0
+        for c, cnt in freq.items():
+            orig = chr((ord(c) - 65 - shift) % 26 + 65)
+            score += (cnt / n) * ENGLISH_FREQ.get(orig, 0)
+        if score > best_score:
+            best_score = score
+            best_shift = shift
+    return chr(best_shift + 65), best_shift, best_score
+
+def recover_key(text, key_length):
+    key = ""
+    for col_idx in range(key_length):
+        column = text[col_idx::key_length]
+        key_char, _, _ = find_key_char(column)
+        key += key_char
+    return key
+
+def decrypt_vigenere(text, key):
+    result = []
+    kl = len(key)
+    for i, c in enumerate(text):
+        decrypted = chr((ord(c) - ord(key[i % kl])) % 26 + 65)
+        result.append(decrypted)
+    return ''.join(result)
+
+def print_ic_table(ic_values, best_kl):
+    print("\n" + "=" * 55)
+    print("  INDEX OF COINCIDENCE vs KEY LENGTH")
+    print("=" * 55)
+    print(f"  {'Length':>8} | {'Avg IC':>8} | {'Bar':<20} | Note")
+    print("  " + "-" * 60)
+    for i, ic in enumerate(ic_values):
+        bar = '#' * int(ic * 400)
+        marker = "  <-- BEST" if (i + 1) == best_kl else ""
+        print(f"  {i+1:>8} | {ic:>8.4f} | {bar:<20} |{marker}")
+    print(f"\n  English IC ~ 0.065  |  Random IC ~ 0.038")
+
+def print_frequency_chart(ciphertext, key):
+    key_length = len(key)
+    print("\n" + "=" * 60)
+    print("  FREQUENCY DISTRIBUTION PER COLUMN")
+    print("=" * 60)
+    for col_idx in range(key_length):
+        column = ciphertext[col_idx::key_length]
+        freq = {}
+        for c in column:
+            freq[c] = freq.get(c, 0) + 1
+        n = len(column)
+        print(f"\n  Column {col_idx+1}  |  Key char: '{key[col_idx]}'  |  Shift: {ord(key[col_idx])-65}")
+        print(f"  {'Letter':<6} {'Cipher%':>8}  {'English%':>9}  Bar")
+        print("  " + "-" * 50)
+        for letter in LETTERS:
+            cp = freq.get(letter, 0) / n * 100
+            ep = ENGLISH_FREQ[letter]
+            bar = '#' * int(cp * 2)
+            print(f"  {letter:<6} {cp:>7.1f}%  {ep:>8.1f}%  {bar}")
+
+def main():
+    print("=" * 60)
+    print("  Vigenere Cipher Cryptanalysis")
+    print("  CY 261 - Cryptography | Phase 1 Task 1")
+    print("  Pure Python - No external libraries")
+    print("=" * 60)
+
+    print("\nEnter the ciphertext (uppercase letters only):")
+    ciphertext = input("> ").strip().upper().replace(" ", "")
+    ciphertext = ''.join(c for c in ciphertext if c.isalpha())
+
+    if not ciphertext:
+        print("Error: empty input.")
+        return
+
+    print(f"\nCiphertext length: {len(ciphertext)} characters")
+
+    # Step 1
+    print("\n[Step 1] Finding key length via Index of Coincidence...")
+    best_kl, ic_values = find_key_length(ciphertext, max_len=20)
+    print_ic_table(ic_values, best_kl)
+    print(f"\n  => Key length = {best_kl}")
+
+    # Step 2
+    print(f"\n[Step 2] Recovering keyword via frequency analysis...")
+    key = recover_key(ciphertext, best_kl)
+    print(f"\n  {'Col':>4} | {'Key char':>8} | {'Shift':>5} | {'Score':>7} | Top letters")
+    print(f"  {'-'*55}")
+    for col_idx in range(best_kl):
+        column = ciphertext[col_idx::best_kl]
+        key_char, shift, score = find_key_char(column)
+        freq = {}
+        for c in column:
+            freq[c] = freq.get(c, 0) + 1
+        top3 = sorted(freq, key=lambda c: -freq[c])[:3]
+        print(f"  {col_idx+1:>4} | {key_char:>8} | {shift:>5} | {score:>7.4f} | {top3}")
+    print(f"\n  => Keyword = \"{key}\"")
+
+    # Step 3
+    print(f"\n[Step 3] Decrypting with key \"{key}\"...")
+    plaintext = decrypt_vigenere(ciphertext, key)
+    print(f"\n{'='*60}")
+    print(f"  PLAINTEXT ({len(plaintext)} characters):")
+    print(f"{'='*60}")
+    for i in range(0, len(plaintext), 65):
+        print("  " + plaintext[i:i+65])
+    print(f"{'='*60}")
+
+    # Step 4
+    print_frequency_chart(ciphertext, key)
+
+    # Summary
+    print("\n" + "=" * 60)
+    print("  SUMMARY")
+    print(f"  Key length : {best_kl}")
+    print(f"  Keyword    : {key}")
+    print(f"  Plaintext  : {plaintext[:70]}...")
+    print("=" * 60)
+
+if __name__ == "__main__":
+    main()
