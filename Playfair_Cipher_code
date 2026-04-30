@@ -6,139 +6,143 @@ Phase 1 - Task 2
 """
 
 import itertools
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
+from collections import Counter
 
 # =============================================
 # ENGLISH LETTER FREQUENCIES (%)
 # =============================================
 ENGLISH_FREQ = {
-    'A': 8.2,  'B': 1.5,  'C': 2.8,  'D': 4.3,  'E': 12.7,
-    'F': 2.2,  'G': 2.0,  'H': 6.1,  'I': 7.0,  'J': 0.15,
-    'K': 0.77, 'L': 4.0,  'M': 2.4,  'N': 6.7,  'O': 7.5,
-    'P': 1.9,  'Q': 0.1,  'R': 6.0,  'S': 6.3,  'T': 9.1,
-    'U': 2.8,  'V': 1.0,  'W': 2.4,  'X': 0.15, 'Y': 2.0,
+    'E': 12.7, 'T': 9.1, 'A': 8.2, 'O': 7.5, 'I': 7.0,
+    'N': 6.7,  'S': 6.3, 'H': 6.1, 'R': 6.0, 'D': 4.3,
+    'L': 4.0,  'C': 2.8, 'U': 2.8, 'M': 2.4, 'W': 2.4,
+    'F': 2.2,  'G': 2.0, 'Y': 2.0, 'P': 1.9, 'B': 1.5,
+    'V': 1.0,  'K': 0.77,'J': 0.15,'X': 0.15,'Q': 0.1,
     'Z': 0.07
 }
 
-LETTERS = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
-
 # =============================================
-# 1. BUILD PLAYFAIR GRID
+# BUILD PLAYFAIR GRID FROM KEYWORD
 # =============================================
 def build_grid(keyword):
-    """Build 5x5 Playfair grid. I and J treated as same letter."""
+   
     keyword = keyword.upper().replace('J', 'I')
     seen = set()
     key_chars = []
+
+    # Add keyword letters first (no duplicates)
     for c in keyword:
         if c.isalpha() and c not in seen:
             seen.add(c)
             key_chars.append(c)
+
+    # Fill remaining letters of the alphabet
     for c in 'ABCDEFGHIKLMNOPQRSTUVWXYZ':
         if c not in seen:
             seen.add(c)
             key_chars.append(c)
+
+    # Build 5x5 grid
     grid = [key_chars[i*5:(i+1)*5] for i in range(5)]
-    pos = {grid[r][c]: (r, c) for r in range(5) for c in range(5)}
+
+    # Build position lookup
+    pos = {}
+    for r in range(5):
+        for c in range(5):
+            pos[grid[r][c]] = (r, c)
+
     return grid, pos
 
 
 def print_grid(grid, keyword):
-    print(f"\n  Playfair 5x5 Grid  (keyword = '{keyword}'):")
-    print("  +" + "----+" * 5)
+    print(f"\n  Playfair Grid (keyword = '{keyword}'):")
+    print("  +" + "---+" * 5)
     for row in grid:
         print("  | " + " | ".join(row) + " |")
-        print("  +" + "----+" * 5)
+        print("  +" + "---+" * 5)
+
 
 # =============================================
-# 2. DECRYPT ONE DIGRAPH
+# DECRYPT A SINGLE DIGRAPH
 # =============================================
 def decrypt_digraph(a, b, grid, pos):
-    """
-    Playfair decryption rules:
-      Same row    -> shift left
-      Same column -> shift up
-      Rectangle   -> swap columns
-    """
+    
     a = a.replace('J', 'I')
     b = b.replace('J', 'I')
     ra, ca = pos[a]
     rb, cb = pos[b]
-    if ra == rb:
-        return grid[ra][(ca-1)%5] + grid[rb][(cb-1)%5]
-    elif ca == cb:
-        return grid[(ra-1)%5][ca] + grid[(rb-1)%5][cb]
-    else:
+
+    if ra == rb:                          # Same row
+        return grid[ra][(ca - 1) % 5] + grid[rb][(cb - 1) % 5]
+    elif ca == cb:                        # Same column
+        return grid[(ra - 1) % 5][ca] + grid[(rb - 1) % 5][cb]
+    else:                                 # Rectangle
         return grid[ra][cb] + grid[rb][ca]
 
+
 # =============================================
-# 3. DECRYPT FULL CIPHERTEXT
+# DECRYPT FULL CIPHERTEXT
 # =============================================
 def playfair_decrypt(ciphertext, keyword):
     grid, pos = build_grid(keyword)
-    result = ''
-    for i in range(0, len(ciphertext)-1, 2):
-        result += decrypt_digraph(ciphertext[i], ciphertext[i+1], grid, pos)
-    return result
+    plaintext = ''
+    for i in range(0, len(ciphertext) - 1, 2):
+        plaintext += decrypt_digraph(ciphertext[i], ciphertext[i+1], grid, pos)
+    return plaintext
+
 
 # =============================================
-# 4. SCORE TEXT (English-likeness)
+# SCORE PLAINTEXT (higher = more English-like)
 # =============================================
 def score_english(text):
+    
     if not text:
         return 0
-    freq = {}
-    for c in text:
-        freq[c] = freq.get(c, 0) + 1
+    freq = Counter(text)
     n = len(text)
-    return sum((cnt/n) * ENGLISH_FREQ.get(c, 0.01) for c, cnt in freq.items())
+    score = 0
+    for c, cnt in freq.items():
+        score += (cnt / n) * ENGLISH_FREQ.get(c, 0.01)
+    return score
+
 
 # =============================================
-# 5. FREQUENCY ANALYSIS
+# FREQUENCY ANALYSIS REPORT
 # =============================================
 def frequency_analysis(ciphertext):
-    """Print letter and digraph frequency analysis."""
-    print("\n" + "=" * 58)
+    print("\n" + "=" * 55)
     print("  FREQUENCY ANALYSIS")
-    print("=" * 58)
+    print("=" * 55)
 
-    freq = {}
-    for c in ciphertext:
-        freq[c] = freq.get(c, 0) + 1
+    # Letter frequencies
+    freq = Counter(ciphertext)
     total = len(ciphertext)
-
-    print(f"\n  Single letter frequencies (total = {total}):")
-    print(f"  {'Letter':<8} {'Count':<7} {'%':<7} Bar")
-    print("  " + "-" * 45)
+    print(f"\n  Letter frequencies (total = {total}):")
+    print(f"  {'Letter':<8} {'Count':<8} {'%':<8}")
+    print(f"  {'-'*24}")
     for letter, count in sorted(freq.items(), key=lambda x: -x[1]):
-        bar = '#' * int(count/total*200)
-        print(f"  {letter:<8} {count:<7} {count/total*100:<6.1f}%  {bar}")
+        bar = '#' * int(count / total * 100)
+        print(f"  {letter:<8} {count:<8} {count/total*100:<6.1f}%  {bar}")
 
+    # Top digraph frequencies
     digraphs = [ciphertext[i:i+2] for i in range(0, len(ciphertext)-1, 2)]
-    dfreq = {}
-    for d in digraphs:
-        dfreq[d] = dfreq.get(d, 0) + 1
+    dfreq = Counter(digraphs)
+    print(f"\n  Top 10 digraphs:")
+    print(f"  {'Digraph':<10} {'Count':<8}")
+    print(f"  {'-'*18}")
+    for dg, cnt in dfreq.most_common(10):
+        print(f"  {dg:<10} {cnt}")
 
-    print(f"\n  Top 15 digraph frequencies:")
-    print(f"  {'Digraph':<10} {'Count':<7} Bar")
-    print("  " + "-" * 35)
-    for dg, cnt in sorted(dfreq.items(), key=lambda x: -x[1])[:15]:
-        bar = '#' * int(cnt * 3)
-        print(f"  {dg:<10} {cnt:<7} {bar}")
-
-    return freq, dfreq
 
 # =============================================
-# 6. BRUTE FORCE (3-letter keywords)
+# BRUTE FORCE ATTACK
 # =============================================
 def brute_force(ciphertext, key_length=3, top_n=10):
+    
     alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     total = len(alphabet) ** key_length
     results = []
 
-    print(f"\n  Trying all {total:,} combinations (key length = {key_length})...")
-    print("  Progress: ", end='', flush=True)
+    print(f"\n  Trying {total:,} keyword combinations (length = {key_length})...")
 
     for i, combo in enumerate(itertools.product(alphabet, repeat=key_length)):
         keyword = ''.join(combo)
@@ -148,150 +152,99 @@ def brute_force(ciphertext, key_length=3, top_n=10):
             results.append((sc, keyword, plain))
         except Exception:
             pass
-        if (i+1) % 4000 == 0:
-            print(f"{(i+1)/total*100:.0f}%.. ", end='', flush=True)
 
-    print("100% Done!")
+        # Progress every 5000
+        if (i + 1) % 5000 == 0:
+            pct = (i + 1) / total * 100
+            print(f"    Progress: {i+1:,}/{total:,} ({pct:.0f}%)")
+
     results.sort(reverse=True)
     return results[:top_n]
 
-# =============================================
-# 7. PLOT — Frequency Distribution
-# =============================================
-def plot_freq_distribution(ciphertext, key):
-    fig, axes = plt.subplots(2, 1, figsize=(14, 9))
-
-   
-    ax1 = axes[0]
-    freq = {c: 0 for c in LETTERS}
-    for c in ciphertext:
-        if c in freq:
-            freq[c] += 1
-    n = len(ciphertext)
-    cipher_pct = [freq[l]/n*100 for l in LETTERS]
-    eng_pct    = [ENGLISH_FREQ[l] for l in LETTERS]
-
-    x = list(range(26))
-    w = 0.38
-    for xi, cp in zip(x, cipher_pct):
-        ax1.bar(xi-w/2, cp, w, color='#378ADD', alpha=0.85)
-    for xi, ep in zip(x, eng_pct):
-        ax1.bar(xi+w/2, ep, w, color='#EF9F27', alpha=0.75)
-
-    ax1.set_title(f'Letter Frequency: Ciphertext vs Standard English  (Key = "{key}")',
-                  fontsize=12, fontweight='bold')
-    ax1.set_xticks(x)
-    ax1.set_xticklabels(LETTERS, fontsize=9)
-    ax1.set_ylabel('Frequency (%)', fontsize=10)
-    ax1.set_ylim(0, 16)
-    ax1.grid(axis='y', alpha=0.3)
-    blue_p   = mpatches.Patch(color='#378ADD', alpha=0.85, label='Ciphertext')
-    orange_p = mpatches.Patch(color='#EF9F27', alpha=0.75, label='Standard English')
-    ax1.legend(handles=[blue_p, orange_p], fontsize=10)
-
-    
-    ax2 = axes[1]
-    digraphs = [ciphertext[i:i+2] for i in range(0, len(ciphertext)-1, 2)]
-    dfreq = {}
-    for d in digraphs:
-        dfreq[d] = dfreq.get(d, 0) + 1
-    top20 = sorted(dfreq.items(), key=lambda x: -x[1])[:20]
-    labels = [d for d,_ in top20]
-    counts = [c for _,c in top20]
-    colors = ['#1D9E75' if i < 3 else '#B5D4F4' for i in range(len(labels))]
-    ax2.bar(range(len(labels)), counts, color=colors, edgecolor='white')
-    ax2.set_xticks(range(len(labels)))
-    ax2.set_xticklabels(labels, fontsize=9)
-    ax2.set_ylabel('Count', fontsize=10)
-    ax2.set_title('Top 20 Digraph Frequencies in Ciphertext', fontsize=12, fontweight='bold')
-    ax2.grid(axis='y', alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig('playfair_frequency.png', dpi=150)
-    plt.show()
-    print("  [saved] playfair_frequency.png")
 
 # =============================================
-# 8. MAIN
+# MAIN
 # =============================================
 def main():
-    print("=" * 58)
+    print("=" * 55)
     print("  Playfair Cipher Cryptanalysis")
     print("  CY 261 - Cryptography | Phase 1 Task 2")
-    print("=" * 58)
+    print("=" * 55)
 
-    
+    # Get ciphertext from user
     print("\nEnter the ciphertext (uppercase letters only):")
-    ciphertext = input("> ").strip().upper().replace(" ", "")
-    ciphertext = ''.join(c for c in ciphertext if c.isalpha())
+    ciphertext = input("> ").strip().upper().replace(" ", "").replace("\n", "")
 
-    if not ciphertext:
+    if len(ciphertext) == 0:
         print("Error: empty input.")
         return
+
     if len(ciphertext) % 2 != 0:
-        print(f"Warning: odd length ({len(ciphertext)}), appending X.")
+        print(f"Warning: ciphertext length {len(ciphertext)} is odd. Appending X.")
         ciphertext += 'X'
 
-    print(f"\nCiphertext length : {len(ciphertext)} characters")
+    print(f"\nCiphertext length: {len(ciphertext)} characters")
     print(f"Number of digraphs: {len(ciphertext)//2}")
 
-    # Step 1 — Frequency Analysis
-    print("\n[Step 1] Performing frequency analysis...")
-    freq, dfreq = frequency_analysis(ciphertext)
+    # Frequency analysis
+    frequency_analysis(ciphertext)
 
-    # Step 2 — Brute Force
-    print("\n[Step 2] Brute force attack (3-letter keyword)...")
-    top_results = brute_force(ciphertext, key_length=3, top_n=10)
+    # Ask for key length
+    print("\n" + "=" * 55)
+    print("  BRUTE FORCE ATTACK")
+    print("=" * 55)
+    try:
+        key_length = int(input("\nEnter key length to brute force [default = 3]: ").strip() or "3")
+    except ValueError:
+        key_length = 3
 
+    # Run brute force
+    top_results = brute_force(ciphertext, key_length=key_length, top_n=10)
+
+    # Show top 10
     print(f"\n  Top 10 keyword candidates:")
-    print(f"  {'Rank':<6} {'Keyword':<10} {'Score':<9} First 55 chars of plaintext")
+    print(f"  {'Rank':<6} {'Keyword':<10} {'Score':<10} {'First 50 chars of plaintext'}")
     print(f"  {'-'*75}")
     for rank, (sc, kw, plain) in enumerate(top_results, 1):
-        print(f"  {rank:<6} {kw:<10} {sc:<9.4f} {plain[:55]}")
+        print(f"  {rank:<6} {kw:<10} {sc:<10.4f} {plain[:50]}")
 
     # Best result
     best_score, best_kw, best_plain = top_results[0]
 
-    
-    print("\n" + "=" * 58)
+    print("\n" + "=" * 55)
     print("  BEST RESULT")
-    print("=" * 58)
-    print(f"\n  Keyword    : {best_kw}")
-    print(f"  Key length : 3")
-    print(f"  Score      : {best_score:.4f}")
+    print("=" * 55)
+    print(f"\n  Keyword      : {best_kw}")
+    print(f"  Key length   : {key_length}")
+    print(f"  Score        : {best_score:.4f}")
 
+    # Print grid
     grid, _ = build_grid(best_kw)
     print_grid(grid, best_kw)
 
+    # Print full plaintext
     print(f"\n  Full Plaintext ({len(best_plain)} characters):")
     print("  " + "-" * 65)
     for i in range(0, len(best_plain), 65):
         print("  " + best_plain[i:i+65])
     print("  " + "-" * 65)
 
-    
-    print("\n[Step 3] Generating frequency distribution diagrams...")
-    plot_freq_distribution(ciphertext, best_kw)
-
-    # Summary
-    print("\n" + "=" * 58)
-    print("  SUMMARY")
-    print(f"  Keyword    : {best_kw}")
-    print(f"  Key length : 3")
-    print(f"  Plaintext  : {best_plain[:70]}...")
-    print("=" * 58)
-
-    # Manual test option
-    print("\nTest a specific keyword manually? (y/n)")
+    # Ask if user wants to try a different keyword manually
+    print("\nWould you like to manually test a specific keyword? (y/n)")
     if input("> ").strip().lower() == 'y':
-        mk = input("Enter keyword: ").strip().upper()
-        mp = playfair_decrypt(ciphertext, mk)
-        mg, _ = build_grid(mk)
-        print_grid(mg, mk)
-        print(f"\n  Plaintext:")
-        for i in range(0, len(mp), 65):
-            print("  " + mp[i:i+65])
+        manual_kw = input("Enter keyword: ").strip().upper()
+        manual_plain = playfair_decrypt(ciphertext, manual_kw)
+        manual_grid, _ = build_grid(manual_kw)
+        print_grid(manual_grid, manual_kw)
+        print(f"\n  Plaintext with keyword '{manual_kw}':")
+        print("  " + "-" * 65)
+        for i in range(0, len(manual_plain), 65):
+            print("  " + manual_plain[i:i+65])
+        print("  " + "-" * 65)
+
+    print("\nDone.")
 
 
 if __name__ == "__main__":
     main()
+    
